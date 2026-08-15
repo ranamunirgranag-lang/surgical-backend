@@ -8,7 +8,7 @@ const UserSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true // Taake ek email par do accounts na ban sakein
+    unique: true 
   },
   password: {
     type: String,
@@ -24,8 +24,18 @@ const UserSchema = new mongoose.Schema({
   },
   isVerifiedDoctor: {
     type: Boolean,
-    default: false // Shuru mein false hoga, jab tak admin verified nahi karega!
-  }
-}, { timestamps: true }); // Is se signup ki date aur time automatic save ho jata hai
+    default: false 
+  },
+  // 📸 NEW: User dashboard profile picture avatar field tracker
+  profilePic: {
+    type: String,
+    default: "https://unsplash.com"
+  },
+  // 🛒 NEW: Link to track user's purchases from the Order model
+  orders: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order' // Jab Order schema banayengi to ye auto link ho jaye ga
+  }]
+}, { timestamps: true }); 
 
 module.exports = mongoose.model('User', UserSchema);
