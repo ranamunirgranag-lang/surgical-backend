@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router(); 
-const mongoose = require('mongoose'); // Mongoose validation rules module require
+const mongoose = require('mongoose'); 
 const User = require('../models/User'); 
 const Inquiry = require('../models/Inquiry'); 
 
@@ -20,7 +20,7 @@ router.post('/signup', async (req, res) => {
       name,
       email,
       password, 
-      pmdcLicense, // Frontend se phone number automatically yahan save ho jaye ga
+      pmdcLicense, 
       hospitalName,
       isVerifiedDoctor: true 
     });
@@ -52,7 +52,7 @@ router.post('/login', async (req, res) => {
     return res.status(200).json({
       success: true,
       msg: `Welcome back, ${user.name}!`,
-      token: user._id, // User ID ko token bana ke pass kar diya taake frontend track kar sakay
+      token: user._id, 
       user: {
         id: user._id,
         name: user.name,
@@ -73,7 +73,6 @@ router.get('/profile/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // 🌟 SUPER BYPASS CRASH PROTECTION LAYER: Agar token 24 characters ka sahi hex code na ho to 500 server error crash nahi aye ga
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(200).json({ 
         success: true, 
@@ -87,8 +86,11 @@ router.get('/profile/:userId', async (req, res) => {
       return res.status(404).json({ success: false, msg: "User profile record not found" });
     }
 
-    // User ke email se filter karke real-time inquiries fetch karein (No fake products now!)
-    const userPurchases = await Inquiry.find({ email: user.email }).sort({ createdAt: -1 });
+    // 🎯 FIXED CONNECTOR: Core raw native documents pointer selection matching native insert layer
+    const userPurchases = await mongoose.connection.db.collection('inquiries')
+      .find({ email: user.email })
+      .sort({ createdAt: -1 })
+      .toArray();
 
     return res.status(200).json({ 
       success: true, 
@@ -158,7 +160,11 @@ router.get('/admin/users/list', async (req, res) => {
 // ========================================================
 router.get('/admin/inquiries/list', async (req, res) => {
   try {
-    const inquiries = await Inquiry.find().sort({ createdAt: -1 }); 
+    // 🎯 FIXED CONNECTOR: Pull matching raw data arrays entries directly
+    const inquiries = await mongoose.connection.db.collection('inquiries')
+      .find()
+      .sort({ createdAt: -1 })
+      .toArray();
     res.json({ success: true, inquiries });
   } catch (error) {
     res.status(500).json({ success: false, msg: "Error fetching inquiries database" });
@@ -198,8 +204,7 @@ router.put('/admin/approve/:id', async (req, res) => {
 // ========================================================
 router.post('/inquiry/submit', async (req, res) => {
   try {
-    // Mongoose verification layer ko flush kar ke direct collection driver trigger kiya taake data structure fields validation check par block na ho
-    const nativeCollection = Inquiry.collection; 
+    const nativeCollection = mongoose.connection.db.collection('inquiries'); 
     
     const inquiryPayload = {
       ...req.body,
@@ -209,7 +214,6 @@ router.post('/inquiry/submit', async (req, res) => {
 
     const result = await nativeCollection.insertOne(inquiryPayload);
 
-    // Push into users schema orders sequence only if valid ObjectId structure matches
     if (req.body.userId && mongoose.Types.ObjectId.isValid(req.body.userId)) {
       await User.findByIdAndUpdate(req.body.userId, { 
         $push: { orders: result.insertedId } 
@@ -226,27 +230,28 @@ router.post('/inquiry/submit', async (req, res) => {
     return res.status(500).json({ success: false, msg: "Database insertion transaction processing failure" });
   }
 });
-
 // ========================================================
-// 10. ADMIN: SEND/STORE REPLY TO INQUIRY (PUT)
+// 🗑️ INVENTORY CATALOG MANAGER: DELETE PRODUCT (DELETE)
 // ========================================================
-router.put('/admin/reply/:id', async (req, res) => {
+router.delete('/delete/:id', async (req, res) => {
   try {
-    const { replyMessage } = req.body;
+    // 🎯 FIXED CONNECTOR: Core raw native documents pointer selection se product wipe out ho jaye ga
+    const result = await mongoose.connection.db.collection('products').deleteOne({
+      _id: new mongoose.Types.ObjectId(req.params.id)
+    });
 
-    const updatedInquiry = await Inquiry.findByIdAndUpdate(
-      req.params.id, 
-      { 
-        adminReply: replyMessage,
-        status: 'Replied'
-      }, 
-      { new: true }
-    );
-    
-    res.json({ success: true, msg: "Reply sent and stored in database successfully!", inquiry: updatedInquiry });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ success: false, msg: "Product template already missing!" });
+    }
+
+    return res.status(200).json({ success: true, msg: "Catalog item permanently wiped out from mongo collection! ✓" });
   } catch (error) {
-    res.status(500).json({ success: false, msg: "Server error while replying", error: error.message });
+    console.error("Delete product exception caught:", error.message);
+    return res.status(500).json({ success: false, msg: "Error executing catalog purge operations" });
   }
 });
 
-module.exports = router;
+module.exports = router; // File connection export line
+
+
+
