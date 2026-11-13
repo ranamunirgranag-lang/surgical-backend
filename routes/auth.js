@@ -250,8 +250,49 @@ router.delete('/delete/:id', async (req, res) => {
     return res.status(500).json({ success: false, msg: "Error executing catalog purge operations" });
   }
 });
+// ========================================================
+// 10. ADMIN: TRANSMIT COMMERCIAL QUOTE & PRICING (PUT)
+// ========================================================
+router.put('/admin/inquiry/reply/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminReply, products } = req.body;
 
-module.exports = router; // File connection export line
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, msg: "Invalid inquiry ID" });
+    }
+
+    const nativeCollection = mongoose.connection.db.collection('inquiries');
+    
+    const updateData = {
+      adminReply,
+      status: 'Quoted',
+      updatedAt: new Date()
+    };
+
+    if (products && Array.isArray(products)) {
+      updateData.products = products;
+      updateData.items = products;
+    }
+
+    await nativeCollection.updateOne(
+      { _id: new mongoose.Types.ObjectId(id) },
+      { $set: updateData }
+    );
+
+    return res.status(200).json({ 
+      success: true, 
+      msg: "Commercial Quote & Pricing synchronized successfully!" 
+    });
+
+  } catch (error) {
+    console.error("Quote update error:", error.message);
+    return res.status(500).json({ success: false, msg: "Database update failed" });
+  }
+});
+
+module.exports = router;
+
 
 
 
