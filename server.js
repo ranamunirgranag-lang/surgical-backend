@@ -7,7 +7,12 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 
 // 💎 FIXED LAYER: Payload limit ko 50mb se barha kar 100mb kiya taake laptop ki heavy pictures block na hon
 app.use(express.json({ limit: '100mb' }));
