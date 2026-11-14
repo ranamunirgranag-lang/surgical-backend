@@ -296,7 +296,8 @@ router.put('/admin/inquiry/reply/:id', async (req, res) => {
 router.put('/profile/password/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const { currentPassword, newPassword } = req.body;
+    const oldPassword = req.body.oldPassword || req.body.currentPassword;
+    const newPassword = req.body.newPassword;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ success: false, msg: "Invalid user ID!" });
@@ -307,18 +308,29 @@ router.put('/profile/password/:userId', async (req, res) => {
       return res.status(404).json({ success: false, msg: "User account not found!" });
     }
 
-    // Purana password verify karein
-    if (user.password !== currentPassword) {
-      return res.status(400).json({ success: false, msg: "Current credential code is invalid." });
+    // 1. Check karein ke purana password sahi hai ya nahi
+    if (user.password !== oldPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        msg: "Your current (old) password does not match!" 
+      });
     }
 
-    // Naya password save karein
+    // 2. Check karein ke naya password purane jaisa hi toh nahi
+    if (user.password === newPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        msg: "New password is already the same as your current password! Please choose a different one." 
+      });
+    }
+
+    // 3. Naya password save karein
     user.password = newPassword;
     await user.save();
 
     return res.status(200).json({
       success: true,
-      msg: "Security password updated successfully! ✓"
+      msg: "Password updated successfully! You can now login with your new password. ✓"
     });
 
   } catch (error) {
