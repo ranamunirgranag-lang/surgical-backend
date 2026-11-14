@@ -290,6 +290,42 @@ router.put('/admin/inquiry/reply/:id', async (req, res) => {
     return res.status(500).json({ success: false, msg: "Database update failed" });
   }
 });
+// ========================================================
+// 11. UPDATE USER SECURITY PASSWORD (PUT)
+// ========================================================
+router.put('/profile/password/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, msg: "Invalid user ID!" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, msg: "User account not found!" });
+    }
+
+    // Purana password verify karein
+    if (user.password !== currentPassword) {
+      return res.status(400).json({ success: false, msg: "Current credential code is invalid." });
+    }
+
+    // Naya password save karein
+    user.password = newPassword;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      msg: "Security password updated successfully! ✓"
+    });
+
+  } catch (error) {
+    console.error("Password update error:", error.message);
+    return res.status(500).json({ success: false, msg: "Server error while updating password" });
+  }
+});
 
 module.exports = router;
 
