@@ -219,16 +219,11 @@ router.put('/profile/password/:userId', async (req, res) => {
     return res.status(500).json({ success: false, msg: "Server error while updating password" });
   }
 });
-// ========================================================
-// 12. FORGOT PASSWORD: SEND 6-DIGIT OTP TO EMAIL (POST)
-// ========================================================
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ success: false, msg: "No account found with this email address!" });
-    }
+    if (!user) return res.status(404).json({ success: false, msg: "No account found with this email!" });
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     await mongoose.connection.db.collection('users').updateOne(
@@ -239,45 +234,28 @@ router.post('/forgot-password', async (req, res) => {
     await sendNotificationEmail(
       email,
       `Password Reset Code - Rana Apex Surgical`,
-      `<h3>Password Reset Request</h3>
-       <p>Dear ${user.name},</p>
-       <p>Your 6-digit password reset verification code is:</p>
-       <h2 style="background:#f1f5f9;padding:12px;letter-spacing:4px;color:#0284c7;display:inline-block;">${otpCode}</h2>
-       <p>This code is valid for 15 minutes.</p>`
+      `<h3>Password Reset Code</h3><p>Your 6-digit verification code is: <b>${otpCode}</b></p>`
     );
 
-    return res.status(200).json({ success: true, msg: "6-digit verification code sent to your email! ✓" });
+    return res.status(200).json({ success: true, msg: "6-digit verification code sent to your email!" });
   } catch (error) {
     return res.status(500).json({ success: false, msg: "Failed to send reset code." });
   }
 });
 
-// ========================================================
-// 13. RESET PASSWORD WITH 6-DIGIT OTP (POST)
-// ========================================================
 router.post('/reset-password', async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
     const userRaw = await mongoose.connection.db.collection('users').findOne({ email });
-
-    if (!userRaw) {
-      return res.status(404).json({ success: false, msg: "User account not found!" });
-    }
-
-    if (!userRaw.resetOtp || userRaw.resetOtp !== otp.trim()) {
-      return res.status(400).json({ success: false, msg: "Invalid verification code! Please check your email." });
-    }
-
-    if (userRaw.resetOtpExpire && Date.now() > userRaw.resetOtpExpire) {
-      return res.status(400).json({ success: false, msg: "Verification code expired! Please request a new one." });
-    }
+    if (!userRaw) return res.status(404).json({ success: false, msg: "User not found!" });
+    if (!userRaw.resetOtp || userRaw.resetOtp !== otp.trim()) return res.status(400).json({ success: false, msg: "Invalid verification code!" });
 
     await mongoose.connection.db.collection('users').updateOne(
       { _id: userRaw._id },
       { $set: { password: newPassword }, $unset: { resetOtp: "", resetOtpExpire: "" } }
     );
 
-    return res.status(200).json({ success: true, msg: "Password reset successful! You can now login with your new password. ✓" });
+    return res.status(200).json({ success: true, msg: "Password reset successful! You can now login." });
   } catch (error) {
     return res.status(500).json({ success: false, msg: "Error resetting password." });
   }
