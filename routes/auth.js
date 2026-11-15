@@ -222,42 +222,64 @@ router.put('/profile/password/:userId', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ success: false, msg: "No account found with this email!" });
+    const usersCol = mongoose.connection.db.collection('users');
+    const user = await usersCol.findOne({ email: email.trim() });
+
+    if (!user) {
+      return res.status(404).json({ success: false, msg: "No account found with this email!" });
+    }
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    await mongoose.connection.db.collection('users').updateOne(
+    await usersCol.updateOne(
       { _id: user._id },
       { $set: { resetOtp: otpCode, resetOtpExpire: Date.now() + 15 * 60 * 1000 } }
     );
 
-    await sendNotificationEmail(
-      email,
-      `Password Reset Code - Rana Apex Surgical`,
-      `<h3>Password Reset Code</h3><p>Your 6-digit verification code is: <b>${otpCode}</b></p>`
-    );
+    if (process.env.EMAIL_APP_PASSWORD) {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: 'ranaapexsurgical640@gmail.com',
+          pass: process.env.EMAIL_APP_PASSWORD
+        }
+      });
 
-    return res.status(200).json({ success: true, msg: "6-digit verification code sent to your email!" });
+      await transporter.sendMail({
+        from: '"Rana Apex Surgical" <ranaapexsurgical640@gmail.com>',
+        to: email.trim(),
+        subject: 'Password Reset Code - Rana Apex Surgical',
+        html: `<h3>Password Reset Request</h3><p>Dear ${user.name || 'Client'},</p><p>Your 6-digit password reset verification code is:</p><h2 style="background:#f1f5f9;padding:12px;letter-spacing:4px;color:#0284c7;display:inline-block;">${otpCode}</h2>`
+      });
+    }
+
+    return res.status(200).json({ success: true, msg: "6-digit verification code sent to your email! ✓" });
   } catch (error) {
-    return res.status(500).json({ success: false, msg: "Failed to send reset code." });
+    console.error("Forgot password error:", error.message);
+    return res.status(500).json({ success: false, msg: error.message });
   }
 });
 
 router.post('/reset-password', async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
-    const userRaw = await mongoose.connection.db.collection('users').findOne({ email });
-    if (!userRaw) return res.status(404).json({ success: false, msg: "User not found!" });
-    if (!userRaw.resetOtp || userRaw.resetOtp !== otp.trim()) return res.status(400).json({ success: false, msg: "Invalid verification code!" });
+    const usersCol = mongoose.connection.db.collection('users');
+    const userRaw = await usersCol.findOne({ email: email.trim() });
 
-    await mongoose.connection.db.collection('users').updateOne(
+    if (!userRaw) {
+      return res.status(404).json({ success: false, msg: "User account not found!" });
+    }
+    if (!userRaw.resetOtp || userRaw.resetOtp !== otp.trim()) {
+      return res.status(400).json({ success: false, msg: "Invalid verification code! Please check your email." });
+    }
+
+    await usersCol.updateOne(
       { _id: userRaw._id },
       { $set: { password: newPassword }, $unset: { resetOtp: "", resetOtpExpire: "" } }
     );
 
-    return res.status(200).json({ success: true, msg: "Password reset successful! You can now login." });
+    return res.status(200).json({ success: true, msg: "Password reset successful! You can now login. ✓" });
   } catch (error) {
-    return res.status(500).json({ success: false, msg: "Error resetting password." });
+    return res.status(500).json({ success: false, msg: error.message });
   }
 });
 
