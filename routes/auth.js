@@ -83,22 +83,33 @@ router.get('/profile/:userId', async (req, res) => {
 router.put('/profile/update/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const { name, pmdcLicense, hospitalName } = req.body;
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, msg: "Invalid ID!" });
+    const { name, pmdcLicense, hospitalName, profilePic } = req.body;
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, msg: "Invalid ID!" });
+    }
 
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, msg: "User not found!" });
+    const updateFields = {};
+    if (name) updateFields.name = name;
+    if (pmdcLicense) updateFields.pmdcLicense = pmdcLicense;
+    if (hospitalName) updateFields.hospitalName = hospitalName;
+    if (profilePic !== undefined) updateFields.profilePic = profilePic;
 
-    if (name) user.name = name;
-    if (pmdcLicense) user.pmdcLicense = pmdcLicense; 
-    if (hospitalName) user.hospitalName = hospitalName; 
-    await user.save(); 
+    await mongoose.connection.db.collection('users').updateOne(
+      { _id: new mongoose.Types.ObjectId(userId) },
+      { $set: updateFields }
+    );
 
-    return res.status(200).json({ success: true, msg: "Profile updated successfully!", user });
+    const updatedUser = await mongoose.connection.db.collection('users').findOne(
+      { _id: new mongoose.Types.ObjectId(userId) },
+      { projection: { password: 0 } }
+    );
+
+    return res.status(200).json({ success: true, msg: "Profile & DP updated successfully!", user: updatedUser });
   } catch (error) {
     return res.status(500).json({ success: false, msg: "Database update failed!", error: error.message });
   }
 });
+
 
 router.get('/admin/users/list', async (req, res) => {
   try {
